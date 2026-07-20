@@ -2,7 +2,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any
 import asyncio
-from datetime import datetime
+import random
+import string
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -11,11 +13,17 @@ from database import get_db, limiter
 from models import Order, OrderItem, User, Product
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from fastapi import Response, Form
+from fastapi import Response, Form, HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordRequestForm
+
+from auth import (
+    UserCreate, Token, UserResponse, OTPVerify,
+    verify_password, get_password_hash, create_access_token, get_current_user
+)
 
 from payfast_utils import generate_signature, validate_itn, PAYFAST_MERCHANT_ID, PAYFAST_MERCHANT_KEY, PAYFAST_URL
 
-app = FastAPI(title="SquadGear API")
+app = FastAPI(title="SquadWear API")
 
 # Rate Limiting Setup
 app.state.limiter = limiter
@@ -51,7 +59,116 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+from database import AsyncSessionLocal
+
+@app.on_event("startup")
+async def startup_event():
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).where(User.email == "admin@squadwear.com"))
+        admin = result.scalar_one_or_none()
+        if not admin:
+            admin = User(
+                email="admin@squadwear.com",
+                password_hash=get_password_hash("admin123"),
+                account_type="internal_admin",
+                first_name="Admin",
+                company_name="Squad Wear"
+            )
+            session.add(admin)
+            await session.commit()
+
 # --- Endpoints ---
+
+@app.post("/api/auth/register", response_model=UserResponse)
+async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == user.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered")
+        
+    hashed_password = get_password_hash(user.password)
+    db_user = User(
+        email=user.email,
+        password_hash=hashed_password,
+        account_type="customer", # default type
+        first_name=user.first_name,
+        company_name=user.company_name
+    )
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+    return db_user
+
+@app.post("/api/auth/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == form_data.username))
+    user = result.scalar_one_or_none()
+    if not user or not verify_password(form_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    otp = ''.join(random.choices(string.digits, k=6))
+    user.otp_code = otp
+    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+    await db.commit()
+    
+    print(f"\n{'='*40}\nOTP FOR {user.email}: {otp}\n{'='*40}\n")
+    
+    return {"require_otp": True, "email": user.email}
+
+@app.post("/api/auth/verify-otp", response_model=Token)
+async def verify_otp(otp_data: OTPVerify, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == otp_data.email))
+    user = result.scalar_one_or_none()
+    
+    if not user or not user.otp_code:
+        raise HTTPException(status_code=400, detail="Invalid OTP or user")
+        
+    if user.otp_code != otp_data.otp_code:
+        raise HTTPException(status_code=400, detail="Incorrect OTP")
+        
+    if not user.otp_expires_at or datetime.utcnow() > user.otp_expires_at:
+        raise HTTPException(status_code=400, detail="OTP has expired")
+        
+    # Valid OTP
+    user.otp_code = None
+    user.otp_expires_at = None
+    await db.commit()
+    
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/auth/me", response_model=UserResponse)
+async def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+from pydantic import BaseModel
+class UserUpdate(BaseModel):
+    first_name: str
+    company_name: str | None = None
+
+@app.put("/api/auth/me", response_model=UserResponse)
+async def update_users_me(user_update: UserUpdate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    current_user.first_name = user_update.first_name
+    current_user.company_name = user_update.company_name
+    await db.commit()
+    await db.refresh(current_user)
+    return current_user
+
+@app.delete("/api/auth/me")
+async def delete_users_me(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    # Delete associated orders and order items first to satisfy foreign key constraints
+    result = await db.execute(select(Order).where(Order.user_id == current_user.id))
+    orders = result.scalars().all()
+    for order in orders:
+        await db.execute(OrderItem.__table__.delete().where(OrderItem.order_id == order.id))
+        await db.execute(Order.__table__.delete().where(Order.id == order.id))
+    
+    await db.delete(current_user)
+    await db.commit()
+    return {"message": "User deleted successfully"}
 
 @app.get("/api/orders")
 @limiter.limit("20/minute")
@@ -71,6 +188,35 @@ async def get_orders(request: Request, db: AsyncSession = Depends(get_db)):
         formatted_orders.append({
             "id": order.id,
             "customerName": f"{order.user.first_name} {order.user.company_name or ''}".strip() if order.user else "Unknown",
+            "totalAmount": float(order.total_amount),
+            "status": order.status,
+            "date": order.created_at.isoformat() + "Z",
+            "items": [
+                {
+                    "id": item.id,
+                    "productName": item.product.name if item.product else "Unknown Product",
+                    "quantity": item.quantity,
+                    "price": float(item.price_at_purchase)
+                } for item in order.items
+            ]
+        })
+    return formatted_orders
+
+@app.get("/api/orders/me")
+@limiter.limit("20/minute")
+async def get_my_orders(request: Request, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Order)
+        .where(Order.user_id == current_user.id)
+        .options(selectinload(Order.items).selectinload(OrderItem.product))
+        .order_by(Order.created_at.desc())
+    )
+    db_orders = result.scalars().all()
+    
+    formatted_orders = []
+    for order in db_orders:
+        formatted_orders.append({
+            "id": order.id,
             "totalAmount": float(order.total_amount),
             "status": order.status,
             "date": order.created_at.isoformat() + "Z",
@@ -123,16 +269,16 @@ async def create_checkout(request: Request, db: AsyncSession = Depends(get_db)):
     # For now, let's create a dummy order for testing the gateway.
     
     # Check if a test user exists, otherwise create one
-    result = await db.execute(select(User).where(User.email == "test@squadgear.com"))
+    result = await db.execute(select(User).where(User.email == "test@squadwear.com"))
     user = result.scalar_one_or_none()
     
     if not user:
         user = User(
-            email="test@squadgear.com", 
+            email="test@squadwear.com", 
             password_hash="fake", 
             account_type="customer", 
             first_name="Test", 
-            company_name="SquadGear"
+            company_name="SquadWear"
         )
         db.add(user)
         await db.commit()
@@ -150,12 +296,12 @@ async def create_checkout(request: Request, db: AsyncSession = Depends(get_db)):
         "merchant_key": PAYFAST_MERCHANT_KEY,
         "return_url": "http://localhost:5173/payment-success",
         "cancel_url": "http://localhost:5173/payment-cancelled",
-        "notify_url": "https://clean-tools-win.loca.lt/api/payfast/itn",
+        "notify_url": "https://tricky-zebras-clap.loca.lt/api/payfast/itn",
         "name_first": user.first_name,
         "email_address": user.email,
         "m_payment_id": order.id,
         "amount": f"{order.total_amount:.2f}",
-        "item_name": "SquadGear Order",
+        "item_name": "SquadWear Order",
     }
     
     signature = generate_signature(payfast_data)

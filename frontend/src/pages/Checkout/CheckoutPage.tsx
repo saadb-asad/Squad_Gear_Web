@@ -1,68 +1,203 @@
 import { useState } from 'react';
+import { useCart } from '../../contexts/CartContext';
+import { PRODUCTS } from '../../data/mockData';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const CheckoutPage = () => {
-  const [loading, setLoading] = useState(false);
-  const [paymentData, setPaymentData] = useState<any>(null);
-  const [payfastUrl, setPayfastUrl] = useState<string>('');
+  const { items, removeFromCart, updateQuantity, clearCart, total } = useCart();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [discount, setDiscount] = useState(0);
+  const navigate = useNavigate();
 
-  const handleCheckout = async () => {
-    try {
-      setLoading(true);
-      // Calls the FastAPI backend to generate a pending order and Payfast signature
-      const res = await fetch('http://localhost:8000/api/checkout', {
-        method: 'POST',
-      });
-      const data = await res.json();
-      
-      setPaymentData(data.payment_data);
-      setPayfastUrl(data.payfast_url);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to initiate checkout. Is the backend running?');
-    } finally {
-      setLoading(false);
+  const handleCheckout = () => {
+    if (items.length === 0) return;
+    setIsProcessing(true);
+    
+    // Simulate payment processing
+    setTimeout(() => {
+      setIsProcessing(false);
+      clearCart();
+      alert('Payment successful! Your order has been placed.');
+      navigate('/');
+    }, 1500);
+  };
+
+  const applyPromo = () => {
+    if (promoCode.toLowerCase() === 'squad10') {
+      setDiscount(total * 0.1);
+      alert('Promo code applied: 10% off!');
+    } else {
+      alert('Invalid promo code');
     }
   };
 
-  return (
-    <div className="container animate-fade-in" style={{ paddingTop: '2rem' }}>
-      <h1 className="heading-1 mb-8">Checkout</h1>
-      
-      <div style={{
-        background: 'var(--color-surface-elevated)',
-        padding: '2rem',
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--color-border)',
-        maxWidth: '500px',
-      }}>
-        <h2 className="heading-2 mb-4">Order Summary</h2>
-        <p className="mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-          You are about to purchase 1x <strong>SquadGear Test Order</strong>.
-        </p>
-        <p className="mb-8" style={{ fontSize: '1.25rem' }}>
-          Total: <strong style={{ color: 'var(--color-primary)' }}>R 150.00</strong>
-        </p>
+  const subtotal = total;
+  const tax = (subtotal - discount) * 0.08;
+  const finalTotal = subtotal - discount + tax;
 
-        {!paymentData ? (
-          <button 
-            className="btn btn-primary" 
-            style={{ width: '100%' }}
-            onClick={handleCheckout}
-            disabled={loading}
-          >
-            {loading ? 'Processing Secure Checkout...' : 'Proceed to Secure Payment'}
-          </button>
-        ) : (
-          <form action={payfastUrl} method="POST">
-            {Object.keys(paymentData).map((key) => (
-              <input key={key} type="hidden" name={key} value={paymentData[key]} />
-            ))}
-            <button className="btn btn-primary" type="submit" style={{ width: '100%', background: '#e3000f', color: '#fff' }}>
-              Pay with Payfast
-            </button>
-          </form>
-        )}
+  // Get some recommendations for 'Complete the Kit'
+  const recommendations = PRODUCTS.slice(0, 2);
+
+  return (
+    <main className="w-full max-w-max-width mx-auto px-margin-desktop space-y-12 py-12">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
+        
+        {/* Shopping Bag List */}
+        <div className="lg:col-span-8 space-y-8">
+          <h1 className="font-headline-xl text-headline-xl text-on-surface mb-8">Your Bag</h1>
+          
+          {items.length === 0 ? (
+            <div className="neo-extruded rounded-2xl p-12 text-center">
+              <span className="material-symbols-outlined text-6xl text-on-surface-variant mb-4">shopping_bag</span>
+              <h2 className="font-headline-md text-headline-md text-on-surface mb-4">Your bag is empty</h2>
+              <Link to="/catalog">
+                <button className="neo-extruded px-8 py-3 rounded-xl font-label-md text-label-md text-secondary hover:neo-recessed transition-all">
+                  Continue Shopping
+                </button>
+              </Link>
+            </div>
+          ) : (
+            items.map(item => {
+              const productInfo = PRODUCTS.find(p => p.id === item.productId);
+              
+              return (
+                <div key={item.productId} className="neo-extruded rounded-2xl p-6 flex flex-col md:flex-row gap-6 items-center">
+                  <div className="w-32 h-32 neo-recessed rounded-xl overflow-hidden flex-shrink-0">
+                    <img className="w-full h-full object-cover" data-alt={item.name} src={productInfo?.image || ''}/>
+                  </div>
+                  <div className="flex-grow w-full">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <Link to={`/catalog/${item.productId}`}>
+                          <h3 className="font-headline-md text-headline-md text-on-surface hover:text-secondary transition-colors">{item.name}</h3>
+                        </Link>
+                        <p className="font-body-md text-body-md text-on-surface-variant mt-1">{productInfo?.subtitle || 'Standard'}</p>
+                      </div>
+                      <span className="font-headline-md text-headline-md text-secondary">${(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between mt-6">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center neo-recessed rounded-full px-4 py-2">
+                          <button 
+                            onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                            className="neo-extruded rounded-full w-8 h-8 flex items-center justify-center neo-button-active hover:text-secondary"
+                          >
+                            <span className="material-symbols-outlined text-sm" data-icon="remove">remove</span>
+                          </button>
+                          <span className="px-6 font-label-md text-label-md">{item.quantity}</span>
+                          <button 
+                            onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                            className="neo-extruded rounded-full w-8 h-8 flex items-center justify-center neo-button-active hover:text-secondary"
+                          >
+                            <span className="material-symbols-outlined text-sm" data-icon="add">add</span>
+                          </button>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => removeFromCart(item.productId)}
+                        className="flex items-center gap-2 text-on-error hover:text-error transition-colors p-2 rounded-lg"
+                      >
+                        <span className="material-symbols-outlined" data-icon="delete">delete</span>
+                        <span className="font-label-md text-label-md">Remove</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+
+          {/* Suggested Items / Promotion */}
+          <div className="mt-12">
+            <h2 className="font-headline-md text-headline-md text-on-surface mb-6">Complete the Kit</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {recommendations.map(rec => (
+                <Link to={`/catalog/${rec.id}`} key={rec.id} className="neo-extruded rounded-xl p-4 group cursor-pointer block">
+                  <div className="aspect-square neo-recessed rounded-lg mb-3 overflow-hidden">
+                    <img className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt={rec.name} src={rec.image}/>
+                  </div>
+                  <p className="font-label-sm text-label-sm text-on-surface-variant truncate">{rec.name}</p>
+                  <p className="font-label-md text-label-md text-on-surface">${rec.price.toFixed(2)}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Order Summary Sidebar */}
+        <aside className="lg:col-span-4 lg:sticky lg:top-28">
+          <div className="neo-extruded rounded-3xl p-8 space-y-6">
+            <h2 className="font-headline-md text-headline-md text-on-surface">Order Summary</h2>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="font-body-md text-body-md text-on-surface-variant">Subtotal</span>
+                <span className="font-body-md text-body-md text-on-surface font-semibold">${subtotal.toFixed(2)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between items-center text-secondary">
+                  <span className="font-body-md text-body-md">Discount</span>
+                  <span className="font-body-md text-body-md font-semibold">-${discount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <span className="font-body-md text-body-md text-on-surface-variant">Shipping</span>
+                <span className="font-body-md text-body-md text-secondary font-semibold">FREE</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-body-md text-body-md text-on-surface-variant">Tax</span>
+                <span className="font-body-md text-body-md text-on-surface font-semibold">${tax.toFixed(2)}</span>
+              </div>
+            </div>
+            
+            <div className="h-px bg-outline-variant/30 neo-recessed py-[1px]"></div>
+            
+            <div className="flex justify-between items-center">
+              <span className="font-headline-md text-headline-md text-on-surface">Total</span>
+              <span className="font-headline-md text-headline-md text-on-surface">${finalTotal.toFixed(2)}</span>
+            </div>
+            
+            <div className="pt-4">
+              <div className="neo-recessed rounded-xl p-2 flex items-center mb-6">
+                <input 
+                  className="bg-transparent border-none focus:ring-0 flex-grow font-body-md text-body-md px-4 outline-none" 
+                  placeholder="Promo Code" 
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value)}
+                />
+                <button onClick={applyPromo} className="neo-extruded px-6 py-2 rounded-lg font-label-md text-label-md text-primary neo-button-active hover:text-secondary transition-colors">Apply</button>
+              </div>
+              <button 
+                onClick={handleCheckout}
+                disabled={items.length === 0 || isProcessing}
+                className={`w-full py-5 rounded-2xl font-headline-md flex items-center justify-center gap-3 transition-all ${
+                  items.length === 0 
+                    ? 'neo-recessed text-on-surface-variant cursor-not-allowed' 
+                    : 'neo-extruded bg-secondary text-white hover:brightness-110 active:shadow-[inset_-4px_-4px_8px_#004d3e,inset_4px_4px_8px_#008a70] neo-button-active'
+                }`}
+              >
+                <span>{isProcessing ? 'Processing...' : 'Proceed to Checkout'}</span>
+                {!isProcessing && <span className="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>}
+              </button>
+            </div>
+            
+            <div className="pt-4 flex flex-col items-center gap-4">
+              <p className="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm" data-icon="lock" style={{ fontVariationSettings: "'FILL' 1" }}>lock</span>
+                Secure 256-bit SSL encrypted payment
+              </p>
+              <div className="flex gap-4 opacity-50 grayscale">
+                <span className="material-symbols-outlined" data-icon="credit_card">credit_card</span>
+                <span className="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
       </div>
-    </div>
+    </main>
   );
 };

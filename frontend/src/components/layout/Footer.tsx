@@ -2,35 +2,52 @@ import { Link } from 'react-router-dom';
 
 export const Footer = () => {
   return (
-    <footer style={{ marginTop: 'auto', padding: '4rem 0', borderTop: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}>
-      <div className="container grid grid-cols-4 gap-8">
-        <div>
-          <h3 className="heading-3 text-gradient mb-4" style={{ marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '2px' }}>SquadGear</h3>
-          <p style={{ color: 'var(--color-text-muted)' }}>Premium streetwear for individuals and businesses.</p>
+    <footer className="w-full mt-24 py-12 px-4 lg:px-margin-desktop bg-surface shadow-[-8px_-8px_16px_#ffffff,8px_8px_16px_#d1d9e6]">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center w-full max-w-max-width mx-auto gap-8 lg:gap-gutter">
+        <div className="space-y-4">
+          <div className="font-headline-md text-headline-md font-bold text-on-surface">Squad Wear</div>
+          <p className="text-on-surface-variant max-w-xs font-body-md text-body-md">Refining the intersection of utility and urban expression through meticulous craftsmanship.</p>
+          <div className="flex gap-4">
+            <button className="neo-extruded-sm neo-interactive p-3 rounded-xl flex items-center justify-center">
+              <span className="material-symbols-outlined text-on-surface-variant">share</span>
+            </button>
+            <button className="neo-extruded-sm neo-interactive p-3 rounded-xl flex items-center justify-center">
+              <span className="material-symbols-outlined text-on-surface-variant">forum</span>
+            </button>
+          </div>
         </div>
         
-        <div className="flex flex-col gap-2">
-          <h4 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Shop</h4>
-          <Link to="/catalog?category=shirts" style={{ color: 'var(--color-text-secondary)' }}>Shirts</Link>
-          <Link to="/catalog?category=trousers" style={{ color: 'var(--color-text-secondary)' }}>Trousers</Link>
-          <Link to="/catalog?category=accessories" style={{ color: 'var(--color-text-secondary)' }}>Accessories</Link>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <h4 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Company</h4>
-          <Link to="/about" style={{ color: 'var(--color-text-secondary)' }}>About Us</Link>
-          <Link to="/about#b2b" style={{ color: 'var(--color-text-secondary)' }}>B2B Portal</Link>
-          <Link to="/contact" style={{ color: 'var(--color-text-secondary)' }}>Contact</Link>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <h4 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Legal</h4>
-          <Link to="/privacy" style={{ color: 'var(--color-text-secondary)' }}>Privacy Policy</Link>
-          <Link to="/terms" style={{ color: 'var(--color-text-secondary)' }}>Terms of Service</Link>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-16">
+          <div className="space-y-4">
+            <h4 className="font-bold text-on-surface font-label-md">Company</h4>
+            <ul className="space-y-2">
+              <li><Link to="/about" className="text-on-surface-variant font-medium hover:text-primary transition-colors font-body-md text-body-md">About</Link></li>
+              <li><Link to="/careers" className="text-on-surface-variant font-medium hover:text-primary transition-colors font-body-md text-body-md">Careers</Link></li>
+              <li><Link to="/contact" className="text-on-surface-variant font-medium hover:text-primary transition-colors font-body-md text-body-md">Contact</Link></li>
+            </ul>
+          </div>
+          
+          <div className="space-y-4">
+            <h4 className="font-bold text-on-surface font-label-md">Support</h4>
+            <ul className="space-y-2">
+              <li><Link to="/shipping" className="text-on-surface-variant font-medium hover:text-primary transition-colors font-body-md text-body-md">Shipping</Link></li>
+              <li><Link to="/returns" className="text-on-surface-variant font-medium hover:text-primary transition-colors font-body-md text-body-md">Returns</Link></li>
+              <li><Link to="/faqs" className="text-on-surface-variant font-medium hover:text-primary transition-colors font-body-md text-body-md">FAQs</Link></li>
+            </ul>
+          </div>
+          
+          <div className="space-y-4">
+            <h4 className="font-bold text-on-surface font-label-md">Legal</h4>
+            <ul className="space-y-2">
+              <li><Link to="/terms" className="text-on-surface-variant font-medium hover:text-primary transition-colors font-body-md text-body-md">Terms</Link></li>
+              <li><Link to="/privacy" className="text-on-surface-variant font-medium hover:text-primary transition-colors font-body-md text-body-md">Privacy</Link></li>
+            </ul>
+          </div>
         </div>
       </div>
-      <div className="container" style={{ marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid var(--color-border)', color: 'var(--color-text-muted)', textAlign: 'center', fontSize: '0.875rem' }}>
-        &copy; {new Date().getFullYear()} SquadGear. All rights reserved.
+      
+      <div className="max-w-max-width mx-auto mt-12 pt-8 border-t border-on-surface-variant/10 text-center md:text-left">
+        <p className="text-on-surface-variant font-body-md text-body-md">© {new Date().getFullYear()} Squad Wear Streetwear. All rights reserved.</p>
       </div>
     </footer>
   );

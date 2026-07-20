@@ -15,6 +15,8 @@ class User(Base):
     account_type = Column(String, nullable=False) # Enum: customer, business_client, internal_admin
     first_name = Column(String, nullable=False)
     company_name = Column(String, nullable=True)
+    otp_code = Column(String, nullable=True)
+    otp_expires_at = Column(DateTime, nullable=True)
     
     orders = relationship("Order", back_populates="user")
 

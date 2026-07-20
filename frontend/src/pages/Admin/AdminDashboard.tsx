@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { Search } from 'lucide-react';
 
 // --- Mock Data ---
 type OrderStatus = 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered';
@@ -22,9 +25,21 @@ interface Order {
 }
 
 export const AdminDashboard = () => {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isOnline, setIsOnline] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredOrders = orders.filter(order => order.id.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || user?.role !== 'internal_admin')) {
+      navigate('/portal/login');
+    }
+  }, [isAuthenticated, isLoading, user, navigate]);
 
   // Fetch initial orders and connect to WebSocket
   useEffect(() => {
@@ -52,7 +67,7 @@ export const AdminDashboard = () => {
           )
         );
         setSelectedOrder(current => 
-          current?.id === data.order_id ? { ...current, status: data.status as OrderStatus } : current
+          (current && current.id === data.order_id) ? { ...current, status: data.status as OrderStatus } : current
         );
       }
     };
@@ -93,7 +108,7 @@ export const AdminDashboard = () => {
     const doc = new jsPDF();
     
     doc.setFontSize(20);
-    doc.text('SquadGear - Monthly Sales Report', 14, 22);
+    doc.text('SquadWear - Monthly Sales Report', 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(100);
@@ -123,60 +138,68 @@ export const AdminDashboard = () => {
       headStyles: { fillColor: [99, 102, 241] }, // Match var(--color-primary)
     });
 
-    doc.save(`SquadGear_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`SquadWear_Report_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
+  if (isLoading || !isAuthenticated || user?.role !== 'internal_admin') {
+    return (
+      <main className="w-full max-w-max-width mx-auto px-4 lg:px-margin-desktop py-12 flex justify-center items-center min-h-[50vh]">
+        <div className="font-headline-md text-on-surface">Checking authorization...</div>
+      </main>
+    );
+  }
+
   return (
-    <div className="container animate-fade-in" style={{ paddingTop: '2rem', paddingBottom: '4rem' }}>
-      <div className="flex justify-between items-center mb-8">
+    <main className="w-full max-w-max-width mx-auto px-4 lg:px-margin-desktop py-12 space-y-8 animate-fade-in">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="heading-2">Manager Portal</h1>
-          <p style={{ color: 'var(--color-text-secondary)' }}>Live Order Fulfillment Dashboard</p>
+          <h1 className="font-headline-xl text-headline-xl text-on-surface">Manager Portal</h1>
+          <p className="text-on-surface-variant font-body-md text-body-md">Live Order Fulfillment Dashboard</p>
         </div>
         <div className="flex items-center gap-4">
           <button 
             onClick={generateMonthlyReport}
-            className="btn btn-secondary" 
-            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+            className="neo-extruded-sm neo-interactive px-4 py-2 rounded-xl font-label-md text-label-md text-on-surface bg-surface" 
           >
             📄 Generate Monthly Report (PDF)
           </button>
-          <div className="glass-panel" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="neo-extruded-sm bg-surface px-4 py-2 rounded-xl flex items-center gap-2">
             <div style={{ 
               width: '10px', height: '10px', borderRadius: '50%', 
-              backgroundColor: isOnline ? '#10b981' : '#f43f5e', 
-              boxShadow: `0 0 8px ${isOnline ? '#10b981' : '#f43f5e'}` 
+              backgroundColor: isOnline ? '#10b981' : '#ba1a1a', 
+              boxShadow: `0 0 8px ${isOnline ? '#10b981' : '#ba1a1a'}` 
             }}></div>
-            <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{isOnline ? 'System Online' : 'Offline'}</span>
+            <span className="font-label-md text-label-md text-on-surface">{isOnline ? 'System Online' : 'Offline'}</span>
           </div>
         </div>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: '1fr 350px', gap: '2rem', alignItems: 'start' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
         {/* Left Column: Order List */}
-        <div className="flex-col gap-4" style={{ display: 'flex' }}>
-          {orders.map(order => (
+        <div className="lg:col-span-8 flex flex-col gap-4">
+          <div className="neo-extruded bg-surface p-4 rounded-2xl flex items-center gap-3">
+            <Search className="text-on-surface-variant" size={20} />
+            <input
+              type="text"
+              placeholder="Search by order number..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-transparent border-none outline-none font-body-md text-on-surface w-full placeholder:text-on-surface-variant/50"
+            />
+          </div>
+          
+          {filteredOrders.map(order => (
             <div 
               key={order.id} 
-              className="glass-panel"
-              style={{ 
-                padding: '1.5rem', 
-                cursor: 'pointer',
-                border: selectedOrder?.id === order.id ? '1px solid var(--color-primary)' : '1px solid var(--color-glass-border)',
-                transition: 'all 0.2s ease',
-                transform: selectedOrder?.id === order.id ? 'translateX(5px)' : 'none'
-              }}
+              className={`neo-interactive rounded-3xl p-6 transition-all duration-300 ${
+                selectedOrder?.id === order.id ? 'neo-recessed bg-surface-container-low scale-[0.98]' : 'neo-extruded bg-surface'
+              }`}
               onClick={() => setSelectedOrder(order)}
             >
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-4">
-                  <h3 className="heading-3" style={{ fontSize: '1.25rem' }}>{order.id}</h3>
-                  <span style={{ 
-                    padding: '0.25rem 0.75rem', 
-                    borderRadius: '999px', 
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
+                  <h3 className="font-headline-md text-headline-md text-on-surface">{order.id}</h3>
+                  <span className="px-3 py-1 rounded-full font-label-md text-label-sm uppercase" style={{ 
                     backgroundColor: `${getStatusColor(order.status)}20`,
                     color: getStatusColor(order.status),
                     border: `1px solid ${getStatusColor(order.status)}40`
@@ -184,12 +207,12 @@ export const AdminDashboard = () => {
                     {order.status}
                   </span>
                 </div>
-                <div style={{ fontWeight: 600, fontSize: '1.125rem' }}>
+                <div className="font-headline-md text-on-surface">
                   ${order.totalAmount.toFixed(2)}
                 </div>
               </div>
               
-              <div className="flex justify-between items-center" style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+              <div className="flex justify-between items-center text-on-surface-variant font-body-md text-body-md">
                 <div>{order.customerName}</div>
                 <div>{new Date(order.date).toLocaleString()}</div>
               </div>
@@ -197,74 +220,73 @@ export const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* Right Column: Order Details */}
-        <div style={{ position: 'sticky', top: '2rem' }}>
+        <div className="lg:col-span-4 sticky top-24">
           {selectedOrder ? (
-            <div className="glass-panel" style={{ padding: '2rem' }}>
-              <h2 className="heading-3 mb-6" style={{ borderBottom: '1px solid var(--color-glass-border)', paddingBottom: '1rem' }}>
+            <div className="neo-extruded bg-surface p-8 rounded-[32px] space-y-6">
+              <h2 className="font-headline-md text-headline-md text-on-surface pb-4 border-b border-outline-variant/30">
                 Order Details
               </h2>
               
-              <div className="flex-col gap-4 mb-6" style={{ display: 'flex' }}>
+              <div className="flex flex-col gap-4">
                 <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer</div>
-                  <div style={{ fontWeight: 500 }}>{selectedOrder.customerName}</div>
+                  <div className="font-label-md text-label-sm text-on-surface-variant uppercase tracking-widest">Customer</div>
+                  <div className="font-body-lg text-on-surface">{selectedOrder.customerName}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Order Date</div>
-                  <div style={{ fontWeight: 500 }}>{new Date(selectedOrder.date).toLocaleString()}</div>
+                  <div className="font-label-md text-label-sm text-on-surface-variant uppercase tracking-widest">Order Date</div>
+                  <div className="font-body-md text-on-surface">{new Date(selectedOrder.date).toLocaleString()}</div>
                 </div>
               </div>
 
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Items</div>
-              <div className="flex-col gap-3 mb-8" style={{ display: 'flex' }}>
+              <div className="font-label-md text-label-sm text-on-surface-variant uppercase tracking-widest">Items</div>
+              <div className="flex flex-col gap-3">
                 {selectedOrder.items.map(item => (
-                  <div key={item.id} className="flex justify-between items-center" style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
+                  <div key={item.id} className="neo-recessed flex justify-between items-center p-4 rounded-2xl bg-surface-container-low">
                     <div className="flex items-center gap-3">
-                      <div style={{ width: '30px', height: '30px', backgroundColor: 'var(--color-bg-elevated)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem', fontWeight: 600 }}>
+                      <div className="w-8 h-8 neo-extruded-sm bg-surface rounded-lg flex items-center justify-center font-label-md text-label-sm text-on-surface">
                         {item.quantity}x
                       </div>
-                      <div style={{ fontSize: '0.875rem' }}>{item.productName}</div>
+                      <div className="font-body-md text-on-surface">{item.productName}</div>
                     </div>
-                    <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>${(item.price * item.quantity).toFixed(2)}</div>
+                    <div className="font-headline-md text-on-surface text-lg">${(item.price * item.quantity).toFixed(2)}</div>
                   </div>
                 ))}
               </div>
 
-              <div className="flex justify-between items-center mb-8" style={{ paddingTop: '1rem', borderTop: '1px solid var(--color-glass-border)' }}>
-                <span style={{ fontSize: '1.125rem', fontWeight: 500 }}>Total</span>
-                <span className="text-gradient" style={{ fontSize: '1.5rem', fontWeight: 700 }}>${selectedOrder.totalAmount.toFixed(2)}</span>
+              <div className="flex justify-between items-center pt-4 border-t border-outline-variant/30">
+                <span className="font-headline-md text-headline-md text-on-surface">Total</span>
+                <span className="font-headline-lg text-headline-lg text-on-surface font-bold">${selectedOrder.totalAmount.toFixed(2)}</span>
               </div>
 
-              <div className="flex-col gap-3" style={{ display: 'flex' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Actions</div>
+              <div className="flex flex-col gap-3">
+                <div className="font-label-md text-label-sm text-on-surface-variant uppercase tracking-widest text-center">Actions</div>
                 
                 {selectedOrder.status === 'paid' && (
-                   <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => updateOrderStatus(selectedOrder.id, 'processing')}>
+                   <button className="neo-extruded-sm neo-interactive w-full py-4 rounded-xl bg-on-surface text-surface font-label-md font-bold" onClick={() => updateOrderStatus(selectedOrder.id, 'processing')}>
                      Mark as Processing
                    </button>
                 )}
                 
                 {selectedOrder.status === 'processing' && (
-                   <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => updateOrderStatus(selectedOrder.id, 'shipped')}>
+                   <button className="neo-extruded-sm neo-interactive w-full py-4 rounded-xl bg-on-surface text-surface font-label-md font-bold" onClick={() => updateOrderStatus(selectedOrder.id, 'shipped')}>
                      Mark as Shipped
                    </button>
                 )}
 
                 {(selectedOrder.status === 'pending' || selectedOrder.status === 'delivered') && (
-                  <div style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--color-text-muted)', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                  <div className="text-center font-body-md text-on-surface-variant p-4 neo-recessed rounded-2xl bg-surface-container-low">
                     No actions available for current status.
                   </div>
                 )}
               </div>
             </div>
           ) : (
-            <div className="glass-panel flex items-center justify-center" style={{ height: '300px', color: 'var(--color-text-muted)' }}>
+            <div className="neo-recessed bg-surface-container-low rounded-[32px] flex items-center justify-center h-64 text-on-surface-variant font-body-md">
               Select an order to view details
             </div>
           )}
         </div>
       </div>
-    </div>
+    </main>
   );
 };

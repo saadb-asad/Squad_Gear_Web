@@ -1,7 +1,7 @@
-# Squad Gear: Master Product Requirements & Architecture Document
+# Squad Wear: Master Product Requirements & Architecture Document
 
 ## 1. Executive Summary
-**Squad Gear** is a comprehensive e-commerce platform specializing in streetwear (shirts, trousers, etc.). The platform caters to individual retail customers (B2C), business clients (B2B), and features a robust real-time administrative dashboard for internal order fulfillment.
+**Squad Wear** is a comprehensive e-commerce platform specializing in streetwear (shirts, trousers, etc.). The platform caters to individual retail customers (B2C), business clients (B2B), and features a robust real-time administrative dashboard for internal order fulfillment.
 
 ### Technology Stack
 - **Frontend**: React (with Context API / Redux for state management)
@@ -41,7 +41,7 @@ The admin dashboard establishes a secure **WebSocket** connection with the backe
 ---
 
 ## 4. Payment Processing Architecture
-Payments are handled securely via a Payment Gateway to ensure sensitive card data never touches the Squad Gear servers.
+Payments are handled securely via a Payment Gateway to ensure sensitive card data never touches the Squad Wear servers.
 
 ### The Payment Lifecycle
 1. **Initialization**: React requests checkout; Python backend creates a `PaymentIntent` and returns a secure `client_secret`.

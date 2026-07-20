@@ -21,3 +21,4 @@ env/
 
 # Supabase Local (if used later)
 supabase/.temp/
+*.db
