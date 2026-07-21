@@ -20,7 +20,11 @@ if DATABASE_URL.startswith("postgresql://"):
 # Disable connection pooling for Supabase pooler (if connecting via port 6543, pool_pre_ping=True helps)
 # The Supabase transaction pooler handles pooling externally, so we keep poolclass to NullPool, 
 # or just standard SQLAlchemy settings. For simplicity, we use standard settings.
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(
+    DATABASE_URL, 
+    echo=False,
+    connect_args={"prepared_statement_cache_size": 0}
+)
 
 AsyncSessionLocal = sessionmaker(
     bind=engine,
