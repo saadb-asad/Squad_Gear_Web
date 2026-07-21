@@ -18,7 +18,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from auth import (
     UserCreate, Token, UserResponse, OTPVerify,
-    verify_password, get_password_hash, create_access_token, get_current_user
+    verify_password, get_password_hash, create_access_token, get_current_user,
+    get_current_internal_admin
 )
 
 from payfast_utils import generate_signature, validate_itn, PAYFAST_MERCHANT_ID, PAYFAST_MERCHANT_KEY, PAYFAST_URL
@@ -172,7 +173,7 @@ async def delete_users_me(current_user: User = Depends(get_current_user), db: As
 
 @app.get("/api/orders")
 @limiter.limit("20/minute")
-async def get_orders(request: Request, db: AsyncSession = Depends(get_db)):
+async def get_orders(request: Request, current_user: User = Depends(get_current_internal_admin), db: AsyncSession = Depends(get_db)):
     # Fetch orders from database with related users and items
     result = await db.execute(
         select(Order)
@@ -233,7 +234,7 @@ async def get_my_orders(request: Request, current_user: User = Depends(get_curre
 
 @app.put("/api/orders/{order_id}/status")
 @limiter.limit("10/minute")
-async def update_order_status(request: Request, order_id: str, status: str, db: AsyncSession = Depends(get_db)):
+async def update_order_status(request: Request, order_id: str, status: str, current_user: User = Depends(get_current_internal_admin), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Order).where(Order.id == order_id))
     order = result.scalar_one_or_none()
     
