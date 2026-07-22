@@ -37,8 +37,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Allow CORS for the frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify the frontend URL
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
