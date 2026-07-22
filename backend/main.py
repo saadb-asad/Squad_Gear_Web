@@ -122,7 +122,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     if resend.api_key:
         try:
             resend.Emails.send({
-                "from": "SquadWear Support <support@squadwear.com>",
+                "from": "SquadWear Support <support@squadattire.com>",
                 "to": user.email,
                 "subject": "Your SquadWear Login OTP",
                 "html": f"<p>Your login code is: <strong>{otp}</strong></p><p>This code expires in 10 minutes.</p>"
