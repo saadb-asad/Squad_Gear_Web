@@ -27,7 +27,7 @@ interface Order {
 }
 
 export const AdminDashboard = () => {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, token } = useAuth();
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState<Order[]>([]);
@@ -45,14 +45,25 @@ export const AdminDashboard = () => {
 
   // Fetch initial orders and connect to WebSocket
   useEffect(() => {
+    if (!token) return;
+
     // 1. Fetch initial data
-    fetch(`${API_BASE_URL}/api/orders`)
-      .then(res => res.json())
+    fetch(`${API_BASE_URL}/api/orders`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch orders");
+        return res.json();
+      })
       .then(data => setOrders(data))
       .catch(err => console.error("Error fetching orders:", err));
 
     // 2. Connect to WebSocket
-    const ws = new WebSocket('ws://localhost:8000/ws/admin');
+    const wsProtocol = API_BASE_URL.startsWith('https') ? 'wss' : 'ws';
+    const wsHost = API_BASE_URL.replace(/^https?:\/\//, '');
+    const ws = new WebSocket(`${wsProtocol}://${wsHost}/ws/admin`);
     
     ws.onopen = () => {
       setIsOnline(true);
@@ -82,12 +93,15 @@ export const AdminDashboard = () => {
     return () => {
       ws.close();
     };
-  }, []);
+  }, [token]);
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     try {
       await fetch(`${API_BASE_URL}/api/orders/${orderId}/status?status=${newStatus}`, {
-        method: 'PUT'
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       // We don't manually update state here because the WebSocket will broadcast the change back to us!
     } catch (err) {
